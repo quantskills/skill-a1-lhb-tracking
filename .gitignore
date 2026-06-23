@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+*.log
+user.json
+work/
+vendor/
+vendor_ak/
+sample_database.parquet
+sample_backtest/
+production/
+*.parquet

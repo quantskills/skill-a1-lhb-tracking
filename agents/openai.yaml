@@ -1,0 +1,6 @@
+interface:
+  display_name: "A1 龙虎榜席位追踪"
+  short_description: "生成、校验和回测 A 股龙虎榜席位追踪因子"
+  default_prompt: "使用 $skill-a1-lhb-tracking 生成、校验并回测 A1 龙虎榜席位追踪因子。"
+policy:
+  allow_implicit_invocation: true
