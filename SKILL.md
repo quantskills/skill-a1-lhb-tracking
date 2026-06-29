@@ -104,6 +104,12 @@ python scripts/validate.py --factor-path production/database.parquet
 python scripts/backtest.py --source panda --start-date 20260101 --end-date 20260622 --eval-start-date 20260216 --lookback-days 30 --min-history 3 --group-count 5 --output-dir production/backtest_pandadata_long
 ```
 
+带成本和交易约束：
+
+```bash
+python scripts/backtest.py --source panda --start-date 20260101 --end-date 20260622 --eval-start-date 20260216 --lookback-days 30 --min-history 3 --group-count 5 --exclude-st --exclude-suspended --exclude-limit-open --one-way-cost-bps 10 --one-way-slippage-bps 5 --output-dir production/backtest_pandadata_stress
+```
+
 输出指标包括：
 
 - IC
@@ -116,6 +122,8 @@ python scripts/backtest.py --source panda --start-date 20260101 --end-date 20260
 - 夏普
 - 最大回撤
 - 换手率
+- 成本和滑点后的净收益指标
+- 停牌、涨跌停过滤前后样本数
 - 样本数量
 
 ## 本地检查

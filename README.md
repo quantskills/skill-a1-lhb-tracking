@@ -55,6 +55,12 @@ python scripts/validate.py --factor-path production/database.parquet
 python scripts/backtest.py --source panda --start-date 20260101 --end-date 20260622 --eval-start-date 20260216 --lookback-days 30 --min-history 3 --group-count 5 --output-dir production/backtest_pandadata_long
 ```
 
+带交易约束和成本的复核：
+
+```bash
+python scripts/backtest.py --source panda --start-date 20260101 --end-date 20260622 --eval-start-date 20260216 --lookback-days 30 --min-history 3 --group-count 5 --exclude-st --exclude-suspended --exclude-limit-open --one-way-cost-bps 10 --one-way-slippage-bps 5 --output-dir production/backtest_pandadata_stress
+```
+
 本地检查：
 
 ```bash
@@ -88,7 +94,7 @@ QuantFlow 平台复核说明见：
 
 - `references/quantflow_validation.md`
 
-建议在平台上继续加入交易成本、滑点、涨停买入限制、停牌过滤、ST 过滤和更长历史周期验证。
+本仓库回测脚本已支持交易成本、滑点、涨跌停开盘、停牌和 ST 过滤；平台复核时建议使用同一口径。
 
 ## 目录结构
 

@@ -82,7 +82,8 @@ Mapping notes:
 - Stock events come from `stock_lhb_detail_em`.
 - Broker seats are linked to stock events by the same LHB date and stock name in `stock_lhb_hyyyb_em`.
 - Broker daily buy amount is allocated across that broker's bought stocks for weighting.
-- Public `post LHB 1-day` outcome is used only as a historical label for dates before the scored date.
+- Public `post LHB 1-day` outcome is an emergency approximation, used only as a historical label for dates before the scored date.
+- Formal validation should use PandaAI stock daily data to calculate `next trading day's open / LHB date close - 1`.
 - Production factor output never writes label fields such as `next_open_premium`.
 
 ## Data Alignment Rules

@@ -57,10 +57,19 @@ def test_backtest_metrics_are_created() -> None:
     lhb_list, lhb_detail, stock_daily, trade_cal = make_sample_data()
     factors = compute_a1_factor(lhb_list, lhb_detail, stock_daily, trade_cal, lookback_days=6, min_history=2)
     labeled = attach_next_open_premium(factors, stock_daily)
-    summary, ic_frame, group_frame = compute_backtest_metrics(labeled, group_count=3)
+    summary, ic_frame, group_frame = compute_backtest_metrics(
+        labeled,
+        group_count=3,
+        one_way_cost_bps=5,
+        one_way_slippage_bps=5,
+    )
     assert summary["sample_count"] > 0
+    assert summary["round_trip_cost"] == 0.002
+    assert "top_group_mean_next_open_premium_net" in summary
     assert len(group_frame) > 0
     assert "next_open_premium" in labeled.columns
+    assert "next_volume" in labeled.columns
+    assert "next_trade_status" in labeled.columns
 
 
 def test_full_universe_labels_include_non_lhb_stocks_with_zero_score() -> None:

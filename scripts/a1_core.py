@@ -482,7 +482,21 @@ def _build_next_open_labels(stock_daily: pd.DataFrame) -> pd.DataFrame:
 
     prices["next_date"] = prices.groupby("symbol")["date"].shift(-1)
     prices["next_open"] = prices.groupby("symbol")["open"].shift(-1)
-    labels = prices[["symbol", "date", "close", "next_date", "next_open"]].copy()
+    optional_next_columns = {
+        "pre_close": "next_pre_close",
+        "high": "next_high",
+        "low": "next_low",
+        "volume": "next_volume",
+        "amount": "next_amount",
+        "trade_status": "next_trade_status",
+    }
+    for source, target in optional_next_columns.items():
+        if source in prices.columns:
+            prices[target] = prices.groupby("symbol")[source].shift(-1)
+    keep_columns = ["symbol", "date", "close", "next_date", "next_open"] + [
+        target for target in optional_next_columns.values() if target in prices.columns
+    ]
+    labels = prices[keep_columns].copy()
     labels["next_open_premium"] = np.where(
         (labels["close"] > 0) & (labels["next_open"] > 0),
         labels["next_open"] / labels["close"] - 1.0,
@@ -571,6 +585,13 @@ def _select_metric_columns(frame: pd.DataFrame, score_col: str, label_col: str) 
     return out
 
 
+def _rank_correlation(score: pd.Series, label: pd.Series) -> float | None:
+    ranked_score = score.rank(method="average")
+    ranked_label = label.rank(method="average")
+    corr = ranked_score.corr(ranked_label, method="pearson")
+    return None if pd.isna(corr) else float(corr)
+
+
 def validate_factor_frame(factors: pd.DataFrame, require_no_forward_label: bool = True) -> list[str]:
     errors: list[str] = []
     missing = [column for column in REQUIRED_FACTOR_COLUMNS if column not in factors.columns]
@@ -619,6 +640,8 @@ def compute_backtest_metrics(
     group_count: int = 5,
     score_col: str = "score",
     label_col: str = "next_open_premium",
+    one_way_cost_bps: float = 0.0,
+    one_way_slippage_bps: float = 0.0,
 ) -> tuple[dict[str, float | int | str | None], pd.DataFrame, pd.DataFrame]:
     frame = _select_metric_columns(factors_with_labels, score_col, label_col)
     frame = frame.dropna(subset=["trade_date", "ts_code", "_metric_score", "_metric_label"])
@@ -637,7 +660,7 @@ def compute_backtest_metrics(
             and day["_metric_label"].nunique(dropna=True) > 1
         ):
             ic = day["_metric_score"].corr(day["_metric_label"], method="pearson")
-            rank_ic = day["_metric_score"].corr(day["_metric_label"], method="spearman")
+            rank_ic = _rank_correlation(day["_metric_score"], day["_metric_label"])
             ic_rows.append({"trade_date": date, "ic": ic, "rank_ic": rank_ic, "n": len(day)})
 
         ranks = day["_metric_score"].rank(method="first", ascending=False)
@@ -681,6 +704,14 @@ def compute_backtest_metrics(
         series = series.dropna()
         return float((1.0 + series).prod() - 1.0) if len(series) else None
 
+    def _max_drawdown(series: pd.Series) -> float | None:
+        series = series.dropna()
+        if len(series) == 0:
+            return None
+        curve = (1.0 + series).cumprod()
+        drawdown = curve / curve.cummax() - 1.0
+        return float(drawdown.min())
+
     def _annualized_return(series: pd.Series) -> float | None:
         series = series.dropna()
         if len(series) == 0:
@@ -709,14 +740,15 @@ def compute_backtest_metrics(
         else None
     )
 
-    if len(long_short):
-        curve = (1.0 + long_short.fillna(0.0)).cumprod()
-        drawdown = curve / curve.cummax() - 1.0
-        max_drawdown = float(drawdown.min())
-        long_short_mean = float(long_short.mean())
-    else:
-        max_drawdown = None
-        long_short_mean = None
+    one_way_cost = max(float(one_way_cost_bps or 0.0), 0.0) / 10000.0
+    one_way_slippage = max(float(one_way_slippage_bps or 0.0), 0.0) / 10000.0
+    round_trip_cost = 2.0 * (one_way_cost + one_way_slippage)
+    long_short_round_trip_cost = 2.0 * round_trip_cost
+    top_net = top - round_trip_cost
+    bottom_net = bottom - round_trip_cost
+    long_short_net = long_short - long_short_round_trip_cost
+    max_drawdown = _max_drawdown(long_short)
+    long_short_mean = float(long_short.mean()) if len(long_short) else None
 
     turnovers = []
     for prev, cur in zip(top_sets, top_sets[1:]):
@@ -728,6 +760,10 @@ def compute_backtest_metrics(
     summary: dict[str, float | int | str | None] = {
         "score_column": score_col,
         "label_column": label_col,
+        "one_way_cost_bps": float(one_way_cost_bps or 0.0),
+        "one_way_slippage_bps": float(one_way_slippage_bps or 0.0),
+        "round_trip_cost": float(round_trip_cost),
+        "long_short_round_trip_cost": float(long_short_round_trip_cost),
         "sample_count": int(len(frame)),
         "date_count": int(frame["trade_date"].nunique()),
         "ic_mean": ic_mean,
@@ -737,19 +773,33 @@ def compute_backtest_metrics(
         "top_group_mean_next_open_premium": _mean(group_frame[group_frame["group"].eq(1)]["mean_next_open_premium"]) if len(group_frame) else None,
         "bottom_group_mean_next_open_premium": _mean(group_frame[group_frame["group"].eq(group_count)]["mean_next_open_premium"]) if len(group_frame) else None,
         "long_short_mean_next_open_premium": long_short_mean,
+        "top_group_mean_next_open_premium_net": _mean(top_net),
+        "bottom_group_mean_next_open_premium_net": _mean(bottom_net),
+        "long_short_mean_next_open_premium_net": _mean(long_short_net),
         "top_group_cumulative_return": _cumulative_return(top),
         "bottom_group_cumulative_return": _cumulative_return(bottom),
         "long_short_cumulative_return": _cumulative_return(long_short),
+        "top_group_cumulative_return_net": _cumulative_return(top_net),
+        "bottom_group_cumulative_return_net": _cumulative_return(bottom_net),
+        "long_short_cumulative_return_net": _cumulative_return(long_short_net),
         "top_group_annualized_return": _annualized_return(top),
         "bottom_group_annualized_return": _annualized_return(bottom),
         "long_short_annualized_return": _annualized_return(long_short),
+        "top_group_annualized_return_net": _annualized_return(top_net),
+        "bottom_group_annualized_return_net": _annualized_return(bottom_net),
+        "long_short_annualized_return_net": _annualized_return(long_short_net),
         "top_group_annualized_volatility": _annualized_volatility(top),
         "long_short_annualized_volatility": _annualized_volatility(long_short),
         "top_group_sharpe": _sharpe(top),
         "long_short_sharpe": _sharpe(long_short),
+        "top_group_sharpe_net": _sharpe(top_net),
+        "long_short_sharpe_net": _sharpe(long_short_net),
         "top_group_win_rate": _win_rate(top),
         "long_short_win_rate": _win_rate(long_short),
+        "top_group_win_rate_net": _win_rate(top_net),
+        "long_short_win_rate_net": _win_rate(long_short_net),
         "max_drawdown": max_drawdown,
+        "max_drawdown_net": _max_drawdown(long_short_net),
         "turnover": turnover,
     }
     return summary, ic_frame, group_frame
@@ -786,6 +836,7 @@ def make_sample_data() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Dat
                     "date": date,
                     "open": open_price,
                     "close": close,
+                    "pre_close": close_map[symbol][idx - 1] if idx > 0 else close,
                     "high": close * 1.03,
                     "low": close * 0.97,
                     "volume": 1_000_000 + idx * 1000,

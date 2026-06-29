@@ -35,6 +35,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--missing-factor-value", type=float, default=0.0)
     parser.add_argument("--stock-indicator", default="", help="Optional stock universe indicator for PandaAI stock_daily.")
     parser.add_argument("--exclude-st", action="store_true", help="Exclude ST stocks when fetching PandaAI all-stock daily data.")
+    parser.add_argument("--exclude-suspended", action="store_true", help="Exclude rows without executable next-open trading data.")
+    parser.add_argument("--exclude-limit-open", action="store_true", help="Exclude next-open limit-up or limit-down rows when fields are available.")
+    parser.add_argument("--limit-pct", type=float, default=0.095, help="Limit-open threshold, default 9.5%%.")
+    parser.add_argument("--one-way-cost-bps", type=float, default=0.0, help="One-way transaction cost in bps.")
+    parser.add_argument("--one-way-slippage-bps", type=float, default=0.0, help="One-way slippage in bps.")
     parser.add_argument("--lookback-days", type=int, default=30)
     parser.add_argument("--min-history", type=int, default=3)
     parser.add_argument("--group-count", type=int, default=5)
@@ -45,6 +50,52 @@ def parse_args() -> argparse.Namespace:
 
 def _write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _is_suspended_status(value: object) -> bool:
+    if value is None or pd.isna(value):
+        return False
+    text = str(value).strip().lower()
+    if text in {"", "0", "1", "normal", "trade", "trading", "交易", "正常"}:
+        return False
+    return any(key in text for key in ["suspend", "halt", "停牌", "暂停"])
+
+
+def _apply_execution_filters(
+    labeled: pd.DataFrame,
+    exclude_suspended: bool,
+    exclude_limit_open: bool,
+    limit_pct: float,
+) -> tuple[pd.DataFrame, dict[str, int]]:
+    frame = labeled.copy()
+    stats = {"rows_before_filters": int(len(frame)), "excluded_suspended": 0, "excluded_limit_open": 0}
+    if len(frame) == 0:
+        stats["rows_after_filters"] = 0
+        return frame, stats
+
+    keep = pd.Series(True, index=frame.index)
+    if exclude_suspended:
+        suspended = pd.Series(False, index=frame.index)
+        if "next_open" in frame.columns:
+            suspended |= pd.to_numeric(frame["next_open"], errors="coerce").fillna(0.0).le(0)
+        if "next_volume" in frame.columns:
+            suspended |= pd.to_numeric(frame["next_volume"], errors="coerce").fillna(0.0).le(0)
+        if "next_trade_status" in frame.columns:
+            suspended |= frame["next_trade_status"].map(_is_suspended_status).fillna(False)
+        keep &= ~suspended
+        stats["excluded_suspended"] = int(suspended.sum())
+
+    if exclude_limit_open and {"next_open", "next_pre_close"}.issubset(frame.columns):
+        next_open = pd.to_numeric(frame["next_open"], errors="coerce")
+        next_pre_close = pd.to_numeric(frame["next_pre_close"], errors="coerce")
+        next_ret = next_open / next_pre_close - 1.0
+        limited = next_pre_close.gt(0) & next_ret.abs().ge(float(limit_pct))
+        keep &= ~limited.fillna(False)
+        stats["excluded_limit_open"] = int(limited.sum())
+
+    filtered = frame[keep].copy()
+    stats["rows_after_filters"] = int(len(filtered))
+    return filtered, stats
 
 
 def main() -> int:
@@ -117,14 +168,27 @@ def main() -> int:
         score_col = "score"
         label_col = "next_open_premium"
 
+    labeled, filter_stats = _apply_execution_filters(
+        labeled,
+        exclude_suspended=args.exclude_suspended,
+        exclude_limit_open=args.exclude_limit_open,
+        limit_pct=args.limit_pct,
+    )
+
     summary, ic_frame, group_frame = compute_backtest_metrics(
         labeled,
         group_count=args.group_count,
         score_col=score_col,
         label_col=label_col,
+        one_way_cost_bps=args.one_way_cost_bps,
+        one_way_slippage_bps=args.one_way_slippage_bps,
     )
     summary["evaluation_scope"] = args.evaluation_scope
     summary["stock_daily_symbol_count"] = int(stock_daily["symbol"].nunique()) if "symbol" in stock_daily.columns else 0
+    summary.update(filter_stats)
+    summary["exclude_suspended"] = bool(args.exclude_suspended)
+    summary["exclude_limit_open"] = bool(args.exclude_limit_open)
+    summary["limit_pct"] = float(args.limit_pct)
 
     factors.to_parquet(output_dir / "a1_factors.parquet", index=False)
     labeled.to_parquet(output_dir / "a1_factors_with_labels.parquet", index=False)
