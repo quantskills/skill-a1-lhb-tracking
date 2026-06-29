@@ -3,6 +3,9 @@
 This adapter is used when PandaAI data credentials are unavailable. It combines
 Eastmoney's daily LHB stock table with daily broker-department buy lists, then
 maps broker seats back to stock events by event date and stock name.
+
+The fallback label uses Eastmoney's "after 1 day" field as an approximation;
+official validation should use the PandaAI next-open-over-close label.
 """
 
 from __future__ import annotations

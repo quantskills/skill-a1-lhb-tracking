@@ -49,6 +49,8 @@ quantSkills:
 
 正式交付应优先使用 pandadata。
 
+注意：akshare 备用适配器中的 `next_open_premium` 使用公开源“上榜后 1 日”字段，只作为应急近似标签；正式验证口径以 pandadata 行情计算的“下一交易日开盘价 / 龙虎榜当日收盘价 - 1”为准。
+
 ## 公式摘要
 
 历史标签：
