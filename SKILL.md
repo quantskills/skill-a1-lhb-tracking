@@ -20,6 +20,53 @@ quantSkills:
   summary_en: A-share LHB event-ranking factor using seat win rate, payoff, premium, and buy-size evidence from Pandadata.
 ---
 
+```json qsh-form
+{
+  "version": 1,
+  "task": {
+    "placeholder": "补充说明要构建、校验、解释或回测 A1 龙虎榜席位追踪因子的具体要求"
+  },
+  "fields": [
+    {
+      "key": "mode",
+      "label": "执行任务",
+      "type": "select",
+      "default": "backtest",
+      "options": [
+        { "value": "build", "label": "生成生产因子" },
+        { "value": "validate", "label": "校验因子文件" },
+        { "value": "backtest", "label": "历史回测" },
+        { "value": "explain", "label": "解释因子逻辑" }
+      ]
+    },
+    {
+      "key": "start_date",
+      "label": "开始日期",
+      "type": "date"
+    },
+    {
+      "key": "end_date",
+      "label": "结束日期",
+      "type": "date"
+    },
+    {
+      "key": "lookback_days",
+      "label": "席位回看天数",
+      "type": "number",
+      "default": "30",
+      "help": "计算席位历史胜率与盈亏比时使用的回看窗口"
+    },
+    {
+      "key": "min_history",
+      "label": "最少历史样本",
+      "type": "number",
+      "default": "3"
+    }
+  ],
+  "prompt_template": "{{#task}}任务与材料：\n{{task}}\n\n{{/task}}{{#attachments}}用户上传的材料（已放入工作区）：\n{{attachments}}\n\n{{/attachments}}请对 A1 龙虎榜席位追踪因子执行 {{mode}}。{{#start_date}}开始日期：{{start_date}}。{{/start_date}}{{#end_date}}结束日期：{{end_date}}。{{/end_date}}{{#lookback_days}}席位回看窗口为 {{lookback_days}} 天。{{/lookback_days}}{{#min_history}}最少历史样本数为 {{min_history}}。{{/min_history}}严格防止未来函数，区分因子有效性与完整策略收益，覆盖相应校验或 IC、Rank IC、分组收益、风险及成本指标，并输出中文报告。"
+}
+```
+
 # A1 龙虎榜席位追踪因子
 
 本 skill 用于处理 A1「龙虎榜资金追踪」因子。
