@@ -7,7 +7,7 @@ quantSkills:
   repository_url: https://github.com/quantskills/skill-a1-lhb-tracking
   project_type: skill
   collection: factor-skills
-  license: GPL-3.0
+  license: GPL-3.0-only
   category: factor
   tags: [a-share, lhb, alpha-factor, event-driven, pandadata]
   platforms: [claude-code, codex, openclaw, cursor]
@@ -204,3 +204,7 @@ python scripts/validate_real_backtest.py --event-dir production/backtest_pandada
 - 重复主键数量为 0。
 - 回测结果包含 IC、Rank IC、ICIR、Rank ICIR、分组收益、胜率、夏普、最大回撤、换手率。
 - 文档明确区分“因子有效性验证”和“完整实盘策略收益”。
+
+## Pandadata compatibility
+
+[Pandadata 1.0.6 compatibility](references/pandadata-compatibility.md) — exact SDK baseline, validation scope, and shared guidance for all supported agent runtimes.
