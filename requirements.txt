@@ -2,5 +2,5 @@ pandas
 numpy
 scipy
 pyarrow
-panda-data==0.0.9
+panda-data==1.0.6
 akshare

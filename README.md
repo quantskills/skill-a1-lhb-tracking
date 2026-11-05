@@ -127,3 +127,6 @@ skill-a1-lhb-tracking/
 - 不要提交 pandadata token、账号、密码或本地环境文件。
 - 回测中的收益为“龙虎榜日收盘到下一交易日开盘”的验证口径，不等同于完整实盘策略收益。
 - 上传前建议先运行 `scripts/validate.py` 和单元测试。
+
+
+Pandadata 兼容维护：[abgyjaguo](https://github.com/abgyjaguo)，保留原项目作者署名。
